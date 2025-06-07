@@ -1,0 +1,308 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Data.SqlClient;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace Projeto_V2
+{
+    public partial class Form1 : Form
+    {
+        public Form1()
+        {
+            InitializeComponent();
+            tabControl1.SelectedIndexChanged += tabControl1_SelectedIndexChanged;
+        }
+
+        private void tabControl1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (tabControl1.SelectedTab != null && tabControl1.SelectedTab.Text == "Pintura")
+            {
+                CarregarComboBoxPintura();
+                CarregarDataGridEstoque();
+            }
+        }
+
+        private void CarregarProdutos()
+        {
+            string conexao = @"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=C:\Users\PC\source\repos\Projeto V2\Projeto V2\App_Data\Database1.mdf;Integrated Security=True";
+
+            using (SqlConnection conn = new SqlConnection(conexao))
+            {
+                conn.Open();
+                string sql = "SELECT codigo, nome, categoria FROM produto";
+                SqlDataAdapter da = new SqlDataAdapter(sql, conn);
+                DataTable dt = new DataTable();
+                da.Fill(dt);
+
+                dataGridView1.DataSource = dt;
+            }
+        }
+
+        private void CarregarComboBoxPintura()
+        {
+            string conexao = @"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=C:\Users\PC\source\repos\Projeto V2\Projeto V2\App_Data\Database1.mdf;Integrated Security=True";
+
+            using (SqlConnection conn = new SqlConnection(conexao))
+            {
+                conn.Open();
+                string sql = "SELECT nome FROM produto";
+
+                using (SqlCommand cmd = new SqlCommand(sql, conn))
+                {
+                    using (SqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        comboBoxPintura.Items.Clear(); // Limpa antes de adicionar
+                        while (reader.Read())
+                        {
+                            comboBoxPintura.Items.Add(reader["nome"].ToString());
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private void CarregarDataGridEstoque()
+{
+    string conexao = @"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=C:\Users\PC\source\repos\Projeto V2\Projeto V2\App_Data\Database1.mdf;Integrated Security=True";
+
+    using (SqlConnection conn = new SqlConnection(conexao))
+    {
+        conn.Open();
+
+        string sql = @"
+        SELECT p.codigo AS [Código], p.nome AS [Produto], e.quantidade AS [Quantidade]
+        FROM estoque e
+        INNER JOIN produto p ON e.codigo_produto = p.codigo";
+
+        using (SqlDataAdapter adapter = new SqlDataAdapter(sql, conn))
+        {
+            DataTable tabela = new DataTable();
+            adapter.Fill(tabela);
+            dataGridViewPintura.DataSource = tabela;
+        }
+    }
+}
+
+private void button1_Click(object sender, EventArgs e)
+{
+    string nome = textBoxNome.Text;
+    string categoria = comboBoxCategoria.Text;
+
+    string conexao = @"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=C:\Users\PC\source\repos\Projeto V2\Projeto V2\App_Data\Database1.mdf;Integrated Security=True";
+
+    using (SqlConnection conn = new SqlConnection(conexao))
+    {
+        conn.Open();
+
+        string sql = "INSERT INTO produto (Nome, Categoria) VALUES (@nome, @categoria)";
+        using (SqlCommand cmd = new SqlCommand(sql, conn))
+        {
+            cmd.Parameters.AddWithValue("@nome", nome);
+            cmd.Parameters.AddWithValue("@categoria", categoria);
+
+            cmd.ExecuteNonQuery();
+        }
+
+        MessageBox.Show("Produto cadastrado com sucesso!");
+        CarregarProdutos(); // Atualiza o DataGrid
+    }
+
+    // Limpar campos
+    textBoxNome.Clear();
+    comboBoxCategoria.SelectedIndex = -1;
+}
+
+private void button2_Click(object sender, EventArgs e)
+{
+    if (dataGridView1.SelectedRows.Count > 0)
+    {
+        int codigo = Convert.ToInt32(dataGridView1.SelectedRows[0].Cells["codigo"].Value);
+
+        string conexao = @"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=C:\Users\PC\source\repos\Projeto V2\Projeto V2\App_Data\Database1.mdf;Integrated Security=True";
+
+        using (SqlConnection conn = new SqlConnection(conexao))
+        {
+            conn.Open();
+            string sql = "DELETE FROM produto WHERE codigo = @codigo";
+
+            using (SqlCommand cmd = new SqlCommand(sql, conn))
+            {
+                cmd.Parameters.AddWithValue("@codigo", codigo);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        MessageBox.Show("Produto apagado com sucesso!");
+        CarregarProdutos(); // Atualiza a lista
+    }
+    else
+    {
+        MessageBox.Show("Selecione um produto para apagar.");
+    }
+}
+
+private void button3_Click(object sender, EventArgs e)
+{
+    string nomeProduto = comboBoxPintura.Text;
+    int quantidade = int.Parse(textBoxQtd.Text);
+    string conexao = @"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=C:\Users\PC\source\repos\Projeto V2\Projeto V2\App_Data\Database1.mdf;Integrated Security=True";
+
+    using (SqlConnection conn = new SqlConnection(conexao))
+    {
+        conn.Open();
+
+        // Buscar o código do produto
+        string sqlProduto = "SELECT codigo FROM produto WHERE nome = @nome";
+        int codigoProduto;
+
+        using (SqlCommand cmdProduto = new SqlCommand(sqlProduto, conn))
+        {
+            cmdProduto.Parameters.AddWithValue("@nome", nomeProduto);
+            object resultado = cmdProduto.ExecuteScalar();
+
+            if (resultado == null)
+            {
+                MessageBox.Show("Produto não encontrado.");
+                return;
+            }
+
+            codigoProduto = Convert.ToInt32(resultado);
+        }
+
+        // Verificar se já existe no estoque
+        string sqlVerifica = "SELECT quantidade FROM estoque WHERE codigo_produto = @codigo";
+        int quantidadeExistente;
+
+        using (SqlCommand cmdVerifica = new SqlCommand(sqlVerifica, conn))
+        {
+            cmdVerifica.Parameters.AddWithValue("@codigo", codigoProduto);
+            quantidadeExistente = Convert.ToInt32(cmdVerifica.ExecuteScalar());
+        }
+
+        // Aqui você provavelmente continuaria com um UPDATE se já existir,
+        // ou um INSERT se não existir no estoque.
+    }
+}
+
+if (quantidadeExistente != null)
+{
+    // Já existe: atualiza a quantidade
+    int novaQuantidade = Convert.ToInt32(quantidadeExistente) + quantidade;
+    string sqlUpdate = "UPDATE estoque SET quantidade = @qtd WHERE codigo_produto = @codigo";
+
+    using (SqlCommand cmdUpdate = new SqlCommand(sqlUpdate, conn))
+    {
+        cmdUpdate.Parameters.AddWithValue("@qtd", novaQuantidade);
+        cmdUpdate.Parameters.AddWithValue("@codigo", codigoProduto);
+        cmdUpdate.ExecuteNonQuery();
+    }
+}
+else
+{
+    // Não existe: insere nova linha
+    string sqlInsert = "INSERT INTO estoque (codigo_produto, quantidade) VALUES (@codigo, @quantidade)";
+    using (SqlCommand cmdInsert = new SqlCommand(sqlInsert, conn))
+    {
+        cmdInsert.Parameters.AddWithValue("@codigo", codigoProduto);
+        cmdInsert.Parameters.AddWithValue("@quantidade", quantidade);
+        cmdInsert.ExecuteNonQuery();
+    }
+}
+
+MessageBox.Show("Item adicionado ou atualizado com sucesso!");
+
+CarregarDataGridEstoque(); // Atualiza o DataGridView
+textBoxQtd.Clear();
+
+private void button4_Click(object sender, EventArgs e)
+{
+    if (comboBoxPintura.SelectedItem == null)
+    {
+        MessageBox.Show("Selecione um produto.");
+        return;
+    }
+
+    if (!int.TryParse(textBoxQtd.Text, out int qtdConsumir) || qtdConsumir <= 0)
+    {
+        MessageBox.Show("Quantidade inválida.");
+        return;
+    }
+
+    string nomeProduto = comboBoxPintura.SelectedItem.ToString();
+    string conexao = @"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=C:\Users\PC\source\repos\Projeto V2\Projeto V2\App_Data\Database1.mdf;Integrated Security=True";
+
+    using (SqlConnection conn = new SqlConnection(conexao))
+    {
+        conn.Open();
+
+        // Buscar o código do produto
+        string sqlCodigo = "SELECT codigo FROM produto WHERE nome = @nome";
+        int codigoProduto;
+
+        using (SqlCommand cmd = new SqlCommand(sqlCodigo, conn))
+        {
+            cmd.Parameters.AddWithValue("@nome", nomeProduto);
+            object result = cmd.ExecuteScalar();
+
+            if (result == null)
+            {
+                MessageBox.Show("Produto não encontrado.");
+                return;
+            }
+
+            codigoProduto = Convert.ToInt32(result);
+        }
+
+        // (continua no outro trecho de código com if (quantidadeExistente != null) ...)
+    }
+}
+
+// Verificar quantidade em estoque
+string sqlQtd = "SELECT quantidade FROM estoque WHERE codigo_produto = @codigo";
+int qtdAtual;
+
+using (SqlCommand cmd = new SqlCommand(sqlQtd, conn))
+{
+    cmd.Parameters.AddWithValue("@codigo", codigoProduto);
+    object result = cmd.ExecuteScalar();
+
+    if (result == null)
+    {
+        MessageBox.Show("Este produto ainda não foi adicionado ao estoque.");
+        return;
+    }
+
+    qtdAtual = Convert.ToInt32(result);
+}
+
+if (qtdConsumir > qtdAtual)
+{
+    MessageBox.Show("Quantidade insuficiente no estoque.");
+    return;
+}
+
+// Atualizar estoque
+string sqlAtualiza = "UPDATE estoque SET quantidade = @novaQtd WHERE codigo_produto = @codigo";
+
+using (SqlCommand cmd = new SqlCommand(sqlAtualiza, conn))
+{
+    cmd.Parameters.AddWithValue("@novaQtd", qtdAtual - qtdConsumir);
+    cmd.Parameters.AddWithValue("@codigo", codigoProduto);
+    cmd.ExecuteNonQuery();
+}
+
+MessageBox.Show("Consumo realizado com sucesso!");
+CarregarDataGridEstoque(); // recarrega o grid
+
+private void textBoxNome_TextChanged(object sender, EventArgs e)
+{
+    CarregarProdutos();
+}
